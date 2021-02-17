@@ -1,0 +1,142 @@
+{% extends '_base.html' %}
+
+{% block content %}
+    <div class="card text-center">
+        <div class="card-header" id="head">
+            <span id="qidx">1</span>/<span id="qtotal">3</span>
+        </div>
+        <div class="card-body" id="form_content">
+            <h5 class="card-title" id="question"></h5>
+            <p class="card-text" id="question-desc"></p>
+            <div class="list-group" id="question-options">
+                <button class="list-group-item list-group-item-action">Loading...</button>
+            </div>
+        </div>
+        <div class="card-body" id="data_collect" style="display: none;">
+            <div class="mb-3">
+                <label for="nameInput" class="form-label">Name</label>
+                <input type="text" class="form-control" id="nameInput" placeholder="OOO" maxlength="20">
+            </div>
+            <div class="mb-3">
+                <label for="mailInput" class="form-label">Email</label>
+                <input type="email" class="form-control" id="mailInput" placeholder="name@example.com">
+            </div>
+            <div class="mb-3">
+                <label for="phoneInput" class="form-label">Phone</label>
+                <input type="text" class="form-control" id="phoneInput" placeholder="09xxxxxxxx" maxlength="15">
+            </div>
+            <button type="button" class="btn btn-primary" id="submit">Submit</button>
+        </div>
+        <div class="card-body" id="result_show" style="display: none;">
+            <h5 class="card-title">Correct <span id="result_correct">3</span> / Total <span id="result_total">2</span></h5>
+        </div>
+        {{ quiz|json_script:'quiz-data' }}
+    </div>
+
+    <script>
+        const idx_ele = document.getElementById('qidx');
+        const total_ele = document.getElementById('qtotal');
+        const qform = {
+            'q': document.getElementById('question'),
+            'desc': document.getElementById('question-desc'),
+            'options': document.getElementById('question-options'),
+        };
+        const quiz = JSON.parse(document.getElementById('quiz-data').textContent);
+        let ans = [];
+        let idx = 0;
+
+        let init = () => {
+            total_ele.innerText = quiz.length;
+        };
+
+        let show_question = (idx) => {
+            qform['options'].innerHTML = '';
+            idx_ele.innerText = idx + 1;
+            qform['q'].innerText = quiz[idx]['qtxt'];
+            qform['desc'].innerText = quiz[idx]['qdesc'];
+            quiz[idx]['options'].forEach((itm, _idx) => {
+                let ele = document.createElement('button');
+                ele.classList.add('list-group-item', 'list-group-item-action');
+                ele.innerText = itm['otxt'];
+                ele.addEventListener('click', (e) => {
+                    ans.push({
+                        'qid': quiz[idx]['qid'],
+                        'ans': itm['oid'],
+                    });
+                    next();
+                })
+                qform['options'].appendChild(ele);
+            });
+        };
+
+        let check_name = () => {
+            return document.getElementById('nameInput').value.length > 0;
+        };
+
+        let check_mail = () => {
+            const re = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+            return re.test(document.getElementById('mailInput').value);
+        };
+
+        let check_phone = () => {
+            const re = /^\d{10}$/;
+            return re.test(document.getElementById('phoneInput').value);
+        };
+
+        let show_result = (resp) => {
+            document.getElementById('result_correct').innerText = resp['correct'];
+            document.getElementById('result_total').innerText = resp['total'];
+            document.getElementById('data_collect').remove();
+            document.getElementById('result_show').style.display = 'block';
+        };
+
+        let data_collect = () => {
+            document.getElementById('submit').addEventListener('click', (e) => {
+                if (check_name() && check_mail() && check_phone()) {
+                    fetch('', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{csrf_token}}',
+                        },
+                        body: JSON.stringify({
+                            'name': document.getElementById('nameInput').value,
+                            'mail': document.getElementById('mailInput').value,
+                            'phone': document.getElementById('phoneInput').value,
+                            'ans': ans,
+                        })
+                    }).then(resp => {
+                        if (resp.ok) {
+                            return resp.json();
+                        }
+                        throw new Error(resp.status);
+                    }).then(resp => {
+                        show_result(resp);
+                    }).catch((error) => {
+                        alert(error.message);
+                        location.reload();
+                    });
+                } else {
+                    alert('Check the data.');
+                }
+
+            });
+            document.getElementById('form_content').remove();
+            document.getElementById('data_collect').style.display = 'block';
+        };
+
+        let next = () => {
+            if (idx < quiz.length - 1) {
+                show_question(++idx);
+            } else {
+                data_collect();
+            }
+        };
+
+
+        (() => {
+            init();
+            show_question(idx);
+        })();
+    </script>
+{% endblock %}
